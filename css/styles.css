@@ -1,0 +1,237 @@
+:root{--navy:#101b2b;--navy2:#17263a;--ink:#172337;--muted:#7c899b;--line:#e4e9f0;--blue:#3269e8;--pale:#f5f7fb;--green:#2eaa78}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,Arial,sans-serif;color:var(--ink);background:#fff}h1,h2,h3,.brand{font-family:Manrope,Inter,sans-serif}a{text-decoration:none}.site-nav{background:var(--navy);padding:17px 0}.brand{font-weight:800;color:#fff!important;display:inline-flex;align-items:center;gap:10px;font-size:1.08rem}.brand-mark{display:inline-grid;place-items:center;width:32px;height:32px;border-radius:9px;background:var(--blue);color:#fff;font-weight:800}.nav-link{color:#b8c3d1!important;font-size:.91rem}.nav-link:hover,.nav-link.active{color:#fff!important}.hero-section{background:radial-gradient(ellipse at 80% 35%,#203957 0%,transparent 42%),linear-gradient(120deg,#101b2b,#14243a);color:#fff;padding:85px 0 88px}.hero-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:70px;align-items:center}.eyebrow{font-size:.72rem;font-weight:700;letter-spacing:.13em;color:#5e8df5;margin-bottom:17px}.status-dot{display:inline-block;width:7px;height:7px;background:#49d59a;border-radius:50%;margin-right:7px}.hero-copy h1{font-size:clamp(2.6rem,4.5vw,4.25rem);font-weight:800;letter-spacing:-.055em;line-height:1.09;margin-bottom:22px}.hero-copy h1 span{color:#7da1ff}.hero-lead{max-width:530px;color:#bdc8d8;font-size:1.08rem;line-height:1.8}.btn-primary{background:var(--blue);border-color:var(--blue);font-weight:600}.btn-primary:hover{background:#2557c8;border-color:#2557c8}.btn-ghost{color:#fff;border:1px solid #53647b;font-weight:600}.btn-ghost:hover{background:#ffffff12;color:#fff}.hero-note{font-size:.82rem;color:#b8c3d1;margin-top:28px}.hero-note span{color:#49d59a;margin-right:7px}.market-card{background:#fff;color:var(--ink);border-radius:17px;padding:27px;box-shadow:0 24px 60px #0003}.card-topline,.section-heading,.market-foot,.quote-row,.footer-inner,.chart-header{display:flex;align-items:center;justify-content:space-between;gap:16px}.muted-label{color:#8591a3;font-size:.68rem;font-weight:700;letter-spacing:.1em}.market-card h2{font-size:1.25rem;font-weight:800;margin:6px 0}.live-pill{display:inline-block;white-space:nowrap;border-radius:30px;background:#e7f8f0;color:#16865b;font-size:.68rem;font-weight:700;padding:7px 10px}.card-description{color:#7c899b;font-size:.85rem;margin:18px 0}.quote-list{border-top:1px solid var(--line)}.quote-row{padding:15px 0;border-bottom:1px solid var(--line);gap:12px}.quote-symbol{font-weight:800;font-size:.85rem;min-width:50px}.quote-company{color:#7c899b;font-size:.83rem;flex:1}.quote-value{font-weight:700;font-size:.87rem}.market-foot{font-size:.7rem;color:#9aa4b2;margin-top:17px}.market-foot a,.text-link{color:var(--blue);font-size:.84rem;font-weight:700}.section-space{padding:76px 0}.section-heading{align-items:end}.section-heading h2,.philosophy h2{font-size:2rem;font-weight:800;letter-spacing:-.04em;margin:0}.section-heading>p{max-width:350px;color:#7c899b;font-size:.9rem;margin:0;line-height:1.7}.feature-card{height:100%;border:1px solid var(--line);border-radius:14px;padding:26px;background:#fff}.feature-icon{display:grid;place-items:center;width:43px;height:43px;border-radius:12px;background:#edf2ff;color:var(--blue);font-size:1.35rem;margin-bottom:22px}.feature-card h3{font-size:1.05rem;font-weight:800}.feature-card p{color:#7c899b;font-size:.88rem;line-height:1.75;margin:10px 0 0}.section-tint{background:#f6f8fc}.company-card{height:100%;border:1px solid var(--line);border-radius:14px;padding:23px;background:#fff;transition:transform .18s,box-shadow .18s}.company-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px #182a4510}.company-card-top{display:flex;align-items:center;gap:13px;margin-bottom:18px}.company-logo{width:43px;height:43px;display:grid;place-items:center;border-radius:12px;background:#edf2ff;color:#3269e8;font-weight:800}.company-card h3{font-size:1rem;font-weight:800;margin:0 0 4px}.company-card .sector{font-size:.78rem;color:#8793a3}.company-card p{font-size:.85rem;color:#7c899b;line-height:1.65;min-height:44px}.company-card a{font-size:.82rem;color:var(--blue);font-weight:700}.philosophy{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.philosophy p{color:#7c899b;line-height:1.8;font-size:.93rem}.site-footer{background:var(--navy);padding:25px 0;color:#9caabd;font-size:.76rem}.footer-inner{flex-wrap:wrap}.page-main{min-height:70vh}.page-hero{padding:66px 0 48px;background:linear-gradient(120deg,#f5f7fc,#fff)}.page-hero h1{font-size:clamp(2.3rem,4vw,3.4rem);font-weight:800;letter-spacing:-.05em;margin-bottom:14px}.page-hero p{color:#7c899b;max-width:650px;line-height:1.75}.search-wrap{display:flex;align-items:center;gap:12px;max-width:560px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin-top:26px;color:#8591a3}.search-wrap input{width:100%;border:0;outline:0;font:inherit;font-size:.9rem}.chart-layout{display:grid;grid-template-columns:270px minmax(0,1fr);gap:22px;align-items:start}.company-picker,.chart-card{border:1px solid var(--line);border-radius:15px;padding:23px;background:#fff}.form-select{margin:8px 0 24px;border-color:var(--line);padding:11px;font-size:.9rem}.selected-quote{padding:20px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}.selected-quote strong{font-size:1.8rem;font-family:Manrope,sans-serif}.selected-quote small{color:#7c899b}.notice-box{margin-top:18px;background:#f5f7fb;padding:13px;border-radius:9px;color:#7c899b;font-size:.75rem;line-height:1.65}.chart-header{align-items:flex-start}.chart-header h2{font-size:1.3rem;font-weight:800;margin:6px 0}.chart-area{position:relative;height:360px;margin-top:24px}.chart-message{font-size:.8rem;color:#8793a3;margin:16px 0 0}.empty-state{grid-column:1/-1;padding:30px;text-align:center;color:#7c899b;background:#f5f7fb;border-radius:12px}
+@media(max-width:991px){.hero-grid{grid-template-columns:1fr;gap:42px}.hero-section{padding:65px 0}.market-card{max-width:650px}.chart-layout{grid-template-columns:1fr}.philosophy{gap:35px}}
+@media(max-width:575px){.hero-copy h1{font-size:2.55rem}.section-space{padding:55px 0}.section-heading{align-items:flex-start;flex-direction:column}.section-heading h2,.philosophy h2{font-size:1.7rem}.philosophy{grid-template-columns:1fr;gap:18px}.market-card{padding:20px}.quote-company{display:none}.market-foot{align-items:flex-start;flex-direction:column}.chart-area{height:280px}.footer-inner{align-items:flex-start;flex-direction:column;gap:14px}}
+
+/* Seccion Empresas */
+
+#companiesGrid {
+  margin-top: 10px;
+}
+
+#companyCount {
+  background: #edf2ff;
+  color: var(--blue);
+  padding: 7px 11px;
+  border-radius: 20px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.search-wrap {
+  max-width: 620px;
+  border-radius: 13px;
+  padding: 14px 18px;
+  box-shadow: 0 5px 18px #17233708;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-wrap:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px #3269e815;
+}
+
+.search-wrap > span {
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.search-wrap input::placeholder {
+  color: #a1aaba;
+}
+
+.company-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 25px;
+  box-shadow: 0 3px 12px #17233705;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.company-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: linear-gradient(90deg, var(--blue), #8daaff);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.company-card:hover {
+  transform: translateY(-5px);
+  border-color: #cbd8fb;
+  box-shadow: 0 15px 35px #17233712;
+}
+
+.company-card:hover::before {
+  opacity: 1;
+}
+
+.company-card-top {
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.company-logo {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border: 1px solid #dfe7ff;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f0f4ff, #e5ecff);
+  color: var(--blue);
+  font-size: 0.95rem;
+  letter-spacing: -0.03em;
+}
+
+.company-card h3 {
+  font-size: 1rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.company-card .sector {
+  display: inline-block;
+  margin-top: 3px;
+  color: #667895;
+  background: #f2f5fa;
+  border-radius: 5px;
+  padding: 4px 7px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.company-card p {
+  color: #748196;
+  font-size: 0.84rem;
+  line-height: 1.8;
+  min-height: 70px;
+  margin-bottom: 22px;
+}
+
+.company-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.83rem;
+}
+
+.company-card a:hover {
+  color: #204fc2;
+}
+
+.empty-state {
+  border: 1px dashed #d6deeb;
+  padding: 45px 24px;
+  line-height: 1.7;
+}
+
+@media (max-width: 575px) {
+  #companyCount {
+    font-size: 0.65rem;
+  }
+
+  .company-card {
+    padding: 21px;
+  }
+
+  .company-card p {
+    min-height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-card,
+  .company-card::before,
+  .search-wrap {
+    transition: none;
+  }
+
+  .company-card:hover {
+    transform: none;
+  }
+}
+
+/* Informacion y acceso a cotizaciones de empresas */
+
+.company-info {
+  min-width: 0;
+  flex: 1;
+}
+
+.company-info h3 {
+  overflow-wrap: anywhere;
+}
+
+.company-symbol {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  margin-bottom: 15px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.company-symbol span {
+  color: var(--muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.company-symbol strong {
+  color: var(--navy);
+  background: #f0f4ff;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font-family: Manrope, sans-serif;
+  font-size: 0.85rem;
+}
+
+.company-card .company-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  color: var(--blue);
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.company-link span {
+  font-size: 1.15rem;
+  transition: transform 0.2s ease;
+}
+
+.company-link:hover span {
+  transform: translateX(4px);
+}
+
+.company-card p {
+  min-height: 70px;
+}
+
+@media (max-width: 575px) {
+  .company-card p {
+    min-height: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .company-link span {
+    transition: none;
+  }
+}
