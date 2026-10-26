@@ -1,6 +1,5 @@
 
 import os
-import json
 import time
 import requests
 
@@ -23,11 +22,9 @@ CORS(app)
 API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
 BASE_URL = "https://finnhub.io/api/v1"
 
-# Configuración de la caché del historial
+# Configuración de la caché del historial en memoria
 HISTORY_CACHE_SECONDS = 24 * 60 * 60
-HISTORY_CACHE_DIR = os.path.join(BASE_DIR, "cache", "history")
-
-os.makedirs(HISTORY_CACHE_DIR, exist_ok=True)
+HISTORY_CACHE = {}
 
 
 # =========================
@@ -53,43 +50,22 @@ def cotizaciones():
 # CACHÉ DEL HISTORIAL
 # =========================
 
-def history_cache_path(symbol):
-    return os.path.join(HISTORY_CACHE_DIR, f"{symbol}.json")
-
-
 def load_history_cache(symbol):
-    path = history_cache_path(symbol)
+    cached = HISTORY_CACHE.get(symbol)
 
-    if not os.path.exists(path):
+    if cached is None:
         return None
 
-    try:
-        with open(path, "r", encoding="utf-8") as file:
-            cached = json.load(file)
-
-        if "timestamp" in cached and "data" in cached:
-            return cached
-
-    except (OSError, json.JSONDecodeError) as e:
-        print(f"Error leyendo caché de {symbol}: {e}")
-
-    return None
+    # Si venció, se conserva como respaldo,
+    # pero ya no se considera una caché vigente.
+    return cached
 
 
 def save_history_cache(symbol, data):
-    path = history_cache_path(symbol)
-
-    cached = {
+    HISTORY_CACHE[symbol] = {
         "timestamp": time.time(),
         "data": data
     }
-
-    try:
-        with open(path, "w", encoding="utf-8") as file:
-            json.dump(cached, file, ensure_ascii=False)
-
-    except OSError as e:
-        print(f"Error guardando caché de {symbol}: {e}")
 
 
 # =========================
@@ -188,18 +164,23 @@ def quote(symbol):
 def history(symbol):
     symbol = symbol.upper()
     cached = load_history_cache(symbol)
+    ahora = time.time()
 
-    # Usar la caché si tiene menos de 24 horas.
+    # Si la caché tiene menos de 24 horas, reutilizarla.
     if (
         cached
-        and time.time() - cached["timestamp"] < HISTORY_CACHE_SECONDS
+        and ahora - cached["timestamp"] < HISTORY_CACHE_SECONDS
     ):
+        print(f"Usando historial vigente en memoria de {symbol}")
         return jsonify(cached["data"])
 
     api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
 
+    # Si no hay clave, usar el último historial disponible,
+    # aunque haya vencido.
     if not api_key:
         if cached:
+            print(f"Usando historial anterior de {symbol}")
             return jsonify(cached["data"])
 
         return jsonify({
@@ -221,8 +202,24 @@ def history(symbol):
         response.raise_for_status()
         data = response.json()
 
+        # Si Alpha Vantage informa un límite o restricción,
+        # devolver el historial anterior si existe.
+        if "Note" in data or "Information" in data:
+            detalle = data.get("Note") or data.get("Information")
+            print(f"Límite o restricción de Alpha Vantage: {detalle}")
+
+            if cached:
+                print(f"Usando historial anterior de {symbol}")
+                return jsonify(cached["data"])
+
+            return jsonify({
+                "error": "Alpha Vantage informó un límite o restricción",
+                "detalle": detalle
+            }), 429
+
         if "Error Message" in data:
             if cached:
+                print(f"Usando historial anterior de {symbol}")
                 return jsonify(cached["data"])
 
             return jsonify({
@@ -230,20 +227,11 @@ def history(symbol):
                 "detalle": data["Error Message"]
             }), 400
 
-        if "Note" in data or "Information" in data:
-            if cached:
-                print(f"Usando historial guardado de {symbol}")
-                return jsonify(cached["data"])
-
-            return jsonify({
-                "error": "Alpha Vantage informó un límite o restricción",
-                "detalle": data.get("Note") or data.get("Information")
-            }), 429
-
         series = data.get("Time Series (Daily)")
 
         if not series:
             if cached:
+                print(f"Usando historial anterior de {symbol}")
                 return jsonify(cached["data"])
 
             return jsonify({
@@ -262,14 +250,17 @@ def history(symbol):
             ]
         }
 
+        # Guardar el resultado exitoso en memoria durante 24 horas.
         save_history_cache(symbol, resultado)
 
+        print(f"Historial de {symbol} guardado en memoria")
         return jsonify(resultado)
 
     except requests.RequestException as e:
         print(f"Error consultando Alpha Vantage: {e}")
 
         if cached:
+            print(f"Usando historial anterior de {symbol}")
             return jsonify(cached["data"])
 
         return jsonify({
