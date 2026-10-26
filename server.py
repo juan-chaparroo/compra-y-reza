@@ -11,7 +11,7 @@ from flask_cors import CORS
 
 
 # =========================
-# CONFIGURACIÓN
+# CONFIGURACION
 # =========================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -25,16 +25,16 @@ app = Flask(
 CORS(app)
 
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
-ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+TWELVE_DATA_API_KEY = os.getenv("TWELVE_DATA_API_KEY", "").strip()
 
 FINNHUB_URL = "https://finnhub.io/api/v1"
-ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+TWELVE_DATA_URL = "https://api.twelvedata.com/time_series"
 
-# Caché del historial: 24 horas
+# La informacion historica se conserva durante 24 horas.
 HISTORY_CACHE_SECONDS = 24 * 60 * 60
 
-# SQLite guarda los datos fuera de la carpeta pública del sitio.
-# HISTORY_CACHE_DB permite cambiar la ubicación si hace falta.
+# Se puede configurar una ruta persistente mediante una variable
+# de entorno de Render llamada HISTORY_CACHE_DB.
 CACHE_DB_PATH = os.getenv(
     "HISTORY_CACHE_DB",
     os.path.join(
@@ -45,7 +45,7 @@ CACHE_DB_PATH = os.getenv(
 
 
 # =========================
-# BASE DE DATOS DE CACHÉ
+# BASE DE DATOS DE CACHE
 # =========================
 
 def get_db():
@@ -91,7 +91,7 @@ def load_history_cache(symbol):
         }
 
     except (sqlite3.Error, ValueError, TypeError) as error:
-        app.logger.warning("Error leyendo caché: %s", error)
+        app.logger.warning("Error leyendo cache: %s", error)
         return None
 
 
@@ -113,10 +113,10 @@ def save_history_cache(symbol, data):
                 )
             )
 
-        app.logger.info("Historial guardado: %s", symbol)
+        app.logger.info("Historial guardado en cache: %s", symbol)
 
     except sqlite3.Error as error:
-        app.logger.error("No se pudo guardar la caché: %s", error)
+        app.logger.error("No se pudo guardar el cache: %s", error)
 
 
 def cached_response(cached, message=None):
@@ -132,7 +132,7 @@ init_cache_db()
 
 
 # =========================
-# PÁGINAS HTML
+# PAGINAS HTML
 # =========================
 
 @app.get("/")
@@ -151,7 +151,7 @@ def cotizaciones():
 
 
 # =========================
-# FINNHUB: COTIZACIÓN ACTUAL
+# FINNHUB: COTIZACION ACTUAL
 # =========================
 
 def fetch_finnhub(endpoint, params):
@@ -173,6 +173,7 @@ def fetch_finnhub(endpoint, params):
             timeout=15
         )
         response.raise_for_status()
+
         return response.json(), None
 
     except requests.HTTPError as error:
@@ -186,7 +187,7 @@ def fetch_finnhub(endpoint, params):
 
         return None, (
             jsonify({
-                "error": "Finnhub rechazó la consulta",
+                "error": "Finnhub rechazo la consulta",
                 "status": status
             }),
             502
@@ -197,7 +198,7 @@ def fetch_finnhub(endpoint, params):
 
         return None, (
             jsonify({
-                "error": "No se pudo consultar la cotización"
+                "error": "No se pudo consultar la cotizacion"
             }),
             502
         )
@@ -217,7 +218,7 @@ def quote(symbol):
 
     if not data or not data.get("c"):
         return jsonify({
-            "error": "No hay cotización para ese símbolo"
+            "error": "No hay cotizacion para ese simbolo"
         }), 404
 
     return jsonify({
@@ -230,48 +231,49 @@ def quote(symbol):
 
 
 # =========================
-# ALPHA VANTAGE: HISTORIAL
+# TWELVE DATA: HISTORIAL
 # =========================
 
 @app.get("/api/history/<symbol>")
 def history(symbol):
     symbol = symbol.upper().strip()
 
-    cached = load_history_cache(symbol)
+    # Prefijo propio para separar la cache de Twelve Data
+    # de los historiales guardados anteriormente con Alpha Vantage.
+    cache_key = "TWELVE_DATA_" + symbol
+
+    cached = load_history_cache(cache_key)
     now = time.time()
 
-    # 1. Si la caché tiene menos de 24 horas, usarla.
+    # 1. Si la cache tiene menos de 24 horas, reutilizarla.
     if (
         cached
         and now - cached["timestamp"] < HISTORY_CACHE_SECONDS
     ):
-        app.logger.info(
-            "Usando historial vigente de %s",
-            symbol
-        )
+        app.logger.info("Usando historial guardado de %s", symbol)
         return cached_response(cached)
 
-    # 2. Sin clave: intentar utilizar datos anteriores.
-    if not ALPHA_VANTAGE_API_KEY:
+    # 2. Si no hay clave, intentar usar datos guardados.
+    if not TWELVE_DATA_API_KEY:
         if cached:
             return cached_response(
                 cached,
-                "Se muestra el último historial guardado."
+                "No hay clave de Twelve Data. Se muestra el ultimo historial guardado."
             )
 
         return jsonify({
-            "error": "Falta configurar ALPHA_VANTAGE_API_KEY"
+            "error": "Falta configurar TWELVE_DATA_API_KEY"
         }), 503
 
-    # 3. Consultar Alpha Vantage cuando no hay caché vigente.
+    # 3. Solicitar hasta 100 registros diarios a Twelve Data.
     try:
         response = requests.get(
-            ALPHA_VANTAGE_URL,
+            TWELVE_DATA_URL,
             params={
-                "function": "TIME_SERIES_DAILY",
                 "symbol": symbol,
-                "outputsize": "compact",
-                "apikey": ALPHA_VANTAGE_API_KEY
+                "interval": "1day",
+                "outputsize": 100,
+                "apikey": TWELVE_DATA_API_KEY
             },
             timeout=20
         )
@@ -279,70 +281,84 @@ def history(symbol):
         response.raise_for_status()
         data = response.json()
 
-        # Alpha Vantage puede informar límites en el JSON.
-        restriction = (
-            data.get("Note")
-            or data.get("Information")
-        )
+        # Twelve Data puede responder con un error en formato JSON.
+        if data.get("status") == "error" or data.get("code"):
+            message = data.get("message", "Error de Twelve Data")
 
-        if restriction:
             app.logger.warning(
-                "Restricción de Alpha Vantage: %s",
-                restriction
+                "Twelve Data no devolvio el historial de %s: %s",
+                symbol,
+                message
             )
 
             if cached:
                 return cached_response(
                     cached,
-                    "Límite de consultas alcanzado. "
-                    "Se muestra el último historial guardado."
+                    "No se pudo actualizar. Se muestra el ultimo historial guardado."
                 )
 
             return jsonify({
-                "error": "Alpha Vantage informó un límite o restricción",
-                "detalle": restriction
-            }), 429
-
-        if data.get("Error Message"):
-            if cached:
-                return cached_response(
-                    cached,
-                    "No se pudo actualizar. "
-                    "Se muestra el último historial guardado."
-                )
-
-            return jsonify({
-                "error": "Alpha Vantage rechazó el símbolo",
-                "detalle": data["Error Message"]
-            }), 400
-
-        series = data.get("Time Series (Daily)")
-
-        if not series:
-            if cached:
-                return cached_response(
-                    cached,
-                    "No se pudo actualizar el historial guardado."
-                )
-
-            return jsonify({
-                "error": "No se recibieron datos históricos"
+                "error": "Twelve Data no pudo obtener el historial",
+                "detalle": message
             }), 502
 
-        # Orden cronológico: fechas antiguas primero.
-        dates = sorted(series.keys())
+        records = data.get("values")
+
+        if not records:
+            if cached:
+                return cached_response(
+                    cached,
+                    "No hay datos nuevos. Se muestra el ultimo historial guardado."
+                )
+
+            return jsonify({
+                "error": "Twelve Data no devolvio datos historicos"
+            }), 502
+
+        # Twelve Data normalmente devuelve los registros mas recientes
+        # primero. Ordenarlos cronologicamente para el grafico.
+        records = sorted(
+            records,
+            key=lambda item: item.get("datetime", "")
+        )
+
+        labels = []
+        values = []
+
+        for record in records:
+            date = record.get("datetime")
+            close = record.get("close")
+
+            if date is None or close is None:
+                continue
+
+            try:
+                price = float(close)
+            except (ValueError, TypeError):
+                continue
+
+            labels.append(date)
+            values.append(price)
+
+        if not labels or len(labels) != len(values):
+            if cached:
+                return cached_response(
+                    cached,
+                    "Los datos nuevos no son validos. Se muestra el ultimo historial guardado."
+                )
+
+            return jsonify({
+                "error": "El historial recibido no contiene precios validos"
+            }), 502
 
         result = {
             "symbol": symbol,
-            "labels": dates,
-            "values": [
-                float(series[date]["4. close"])
-                for date in dates
-            ]
+            "labels": labels,
+            "values": values
         }
 
-        # 4. Guardar únicamente respuestas válidas.
-        save_history_cache(symbol, result)
+        # 4. Guardar el historial valido en SQLite.
+        save_history_cache(cache_key, result)
 
         return jsonify(result)
 
@@ -353,38 +369,31 @@ def history(symbol):
             else 502
         )
 
-        app.logger.error(
-            "Error HTTP de Alpha Vantage: %s",
-            status
-        )
+        app.logger.error("Error HTTP de Twelve Data: %s", status)
 
         if cached:
             return cached_response(
                 cached,
-                "No se pudo actualizar. "
-                "Se muestra el último historial guardado."
+                "No se pudo actualizar. Se muestra el ultimo historial guardado."
             )
 
         return jsonify({
-            "error": "Alpha Vantage rechazó la consulta",
+            "error": "Twelve Data rechazo la consulta",
             "status": status
         }), 502
 
-    except (requests.RequestException, ValueError, KeyError) as error:
-        app.logger.error(
-            "Error consultando el historial: %s",
-            error
-        )
+    except (requests.RequestException, ValueError, TypeError) as error:
+        app.logger.error("Error consultando Twelve Data: %s", error)
 
         if cached:
             return cached_response(
                 cached,
-                "Error de conexión. "
-                "Se muestra el último historial guardado."
+                "Error de conexion. Se muestra el ultimo historial guardado."
             )
 
         return jsonify({
-            "error": "No se pudo obtener el historial"
+            "error": "No se pudo obtener el historial",
+            "detalle": str(error)
         }), 502
 
 
@@ -397,9 +406,7 @@ def health():
     return jsonify({
         "status": "ok",
         "finnhub_key_configured": bool(FINNHUB_API_KEY),
-        "alphavantage_key_configured": bool(
-            ALPHA_VANTAGE_API_KEY
-        )
+        "twelve_data_key_configured": bool(TWELVE_DATA_API_KEY)
     })
 
 
