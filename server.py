@@ -1,15 +1,21 @@
 
 import os
 import time
+import json
+import sqlite3
+import tempfile
 import requests
 
 from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 
-# Carpeta principal del proyecto
+
+# =========================
+# CONFIGURACIÓN
+# =========================
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Flask sirve CSS, JavaScript e imágenes desde la carpeta del proyecto.
 app = Flask(
     __name__,
     static_folder=BASE_DIR,
@@ -18,13 +24,111 @@ app = Flask(
 
 CORS(app)
 
-# Configuración de Finnhub
-API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
-BASE_URL = "https://finnhub.io/api/v1"
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "").strip()
+ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
 
-# Configuración de la caché del historial en memoria
+FINNHUB_URL = "https://finnhub.io/api/v1"
+ALPHA_VANTAGE_URL = "https://www.alphavantage.co/query"
+
+# Caché del historial: 24 horas
 HISTORY_CACHE_SECONDS = 24 * 60 * 60
-HISTORY_CACHE = {}
+
+# SQLite guarda los datos fuera de la carpeta pública del sitio.
+# HISTORY_CACHE_DB permite cambiar la ubicación si hace falta.
+CACHE_DB_PATH = os.getenv(
+    "HISTORY_CACHE_DB",
+    os.path.join(
+        tempfile.gettempdir(),
+        "compra_y_reza_history_cache.db"
+    )
+)
+
+
+# =========================
+# BASE DE DATOS DE CACHÉ
+# =========================
+
+def get_db():
+    connection = sqlite3.connect(CACHE_DB_PATH, timeout=10)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def init_cache_db():
+    folder = os.path.dirname(CACHE_DB_PATH)
+
+    if folder:
+        os.makedirs(folder, exist_ok=True)
+
+    with get_db() as db:
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS history_cache (
+                symbol TEXT PRIMARY KEY,
+                timestamp REAL NOT NULL,
+                data TEXT NOT NULL
+            )
+        """)
+
+
+def load_history_cache(symbol):
+    try:
+        with get_db() as db:
+            row = db.execute(
+                """
+                SELECT timestamp, data
+                FROM history_cache
+                WHERE symbol = ?
+                """,
+                (symbol,)
+            ).fetchone()
+
+        if row is None:
+            return None
+
+        return {
+            "timestamp": row["timestamp"],
+            "data": json.loads(row["data"])
+        }
+
+    except (sqlite3.Error, ValueError, TypeError) as error:
+        app.logger.warning("Error leyendo caché: %s", error)
+        return None
+
+
+def save_history_cache(symbol, data):
+    try:
+        with get_db() as db:
+            db.execute(
+                """
+                INSERT INTO history_cache (symbol, timestamp, data)
+                VALUES (?, ?, ?)
+                ON CONFLICT(symbol) DO UPDATE SET
+                    timestamp = excluded.timestamp,
+                    data = excluded.data
+                """,
+                (
+                    symbol,
+                    time.time(),
+                    json.dumps(data)
+                )
+            )
+
+        app.logger.info("Historial guardado: %s", symbol)
+
+    except sqlite3.Error as error:
+        app.logger.error("No se pudo guardar la caché: %s", error)
+
+
+def cached_response(cached, message=None):
+    response = dict(cached["data"])
+
+    if message:
+        response["cache_notice"] = message
+
+    return jsonify(response)
+
+
+init_cache_db()
 
 
 # =========================
@@ -47,92 +151,61 @@ def cotizaciones():
 
 
 # =========================
-# CACHÉ DEL HISTORIAL
-# =========================
-
-def load_history_cache(symbol):
-    cached = HISTORY_CACHE.get(symbol)
-
-    if cached is None:
-        return None
-
-    # Si venció, se conserva como respaldo,
-    # pero ya no se considera una caché vigente.
-    return cached
-
-
-def save_history_cache(symbol, data):
-    HISTORY_CACHE[symbol] = {
-        "timestamp": time.time(),
-        "data": data
-    }
-
-
-# =========================
-# CONSULTAS A FINNHUB
+# FINNHUB: COTIZACIÓN ACTUAL
 # =========================
 
 def fetch_finnhub(endpoint, params):
-    if not API_KEY:
+    if not FINNHUB_API_KEY:
         return None, (
-            jsonify({"error": "Falta configurar FINNHUB_API_KEY"}),
+            jsonify({
+                "error": "Falta configurar FINNHUB_API_KEY"
+            }),
             503
         )
 
-    params = params.copy()
-    params["token"] = API_KEY
+    request_params = dict(params)
+    request_params["token"] = FINNHUB_API_KEY
 
     try:
         response = requests.get(
-            f"{BASE_URL}/{endpoint}",
-            params=params,
+            f"{FINNHUB_URL}/{endpoint}",
+            params=request_params,
             timeout=15
         )
         response.raise_for_status()
         return response.json(), None
 
-    except requests.HTTPError as e:
+    except requests.HTTPError as error:
         status = (
-            e.response.status_code
-            if e.response is not None
-            else None
+            error.response.status_code
+            if error.response is not None
+            else 502
         )
 
-        detalle = (
-            e.response.text[:500]
-            if e.response is not None
-            else str(e)
-        )
-
-        print(f"Error HTTP de Finnhub ({status}): {detalle}")
+        app.logger.error("Error HTTP de Finnhub: %s", status)
 
         return None, (
             jsonify({
                 "error": "Finnhub rechazó la consulta",
-                "status": status,
-                "detalle": detalle
+                "status": status
             }),
             502
         )
 
-    except requests.RequestException as e:
-        print(f"Error de conexión con Finnhub: {e}")
+    except (requests.RequestException, ValueError) as error:
+        app.logger.error("Error consultando Finnhub: %s", error)
 
         return None, (
             jsonify({
-                "error": "No se pudo conectar con el proveedor de datos"
+                "error": "No se pudo consultar la cotización"
             }),
             502
         )
 
 
-# =========================
-# COTIZACIÓN ACTUAL
-# =========================
-
 @app.get("/api/quote/<symbol>")
 def quote(symbol):
-    symbol = symbol.upper()
+    symbol = symbol.upper().strip()
 
     data, error = fetch_finnhub(
         "quote",
@@ -157,44 +230,48 @@ def quote(symbol):
 
 
 # =========================
-# HISTORIAL CON ALPHA VANTAGE
+# ALPHA VANTAGE: HISTORIAL
 # =========================
 
 @app.get("/api/history/<symbol>")
 def history(symbol):
-    symbol = symbol.upper()
-    cached = load_history_cache(symbol)
-    ahora = time.time()
+    symbol = symbol.upper().strip()
 
-    # Si la caché tiene menos de 24 horas, reutilizarla.
+    cached = load_history_cache(symbol)
+    now = time.time()
+
+    # 1. Si la caché tiene menos de 24 horas, usarla.
     if (
         cached
-        and ahora - cached["timestamp"] < HISTORY_CACHE_SECONDS
+        and now - cached["timestamp"] < HISTORY_CACHE_SECONDS
     ):
-        print(f"Usando historial vigente en memoria de {symbol}")
-        return jsonify(cached["data"])
+        app.logger.info(
+            "Usando historial vigente de %s",
+            symbol
+        )
+        return cached_response(cached)
 
-    api_key = os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
-
-    # Si no hay clave, usar el último historial disponible,
-    # aunque haya vencido.
-    if not api_key:
+    # 2. Sin clave: intentar utilizar datos anteriores.
+    if not ALPHA_VANTAGE_API_KEY:
         if cached:
-            print(f"Usando historial anterior de {symbol}")
-            return jsonify(cached["data"])
+            return cached_response(
+                cached,
+                "Se muestra el último historial guardado."
+            )
 
         return jsonify({
             "error": "Falta configurar ALPHA_VANTAGE_API_KEY"
         }), 503
 
+    # 3. Consultar Alpha Vantage cuando no hay caché vigente.
     try:
         response = requests.get(
-            "https://www.alphavantage.co/query",
+            ALPHA_VANTAGE_URL,
             params={
                 "function": "TIME_SERIES_DAILY",
                 "symbol": symbol,
                 "outputsize": "compact",
-                "apikey": api_key
+                "apikey": ALPHA_VANTAGE_API_KEY
             },
             timeout=20
         )
@@ -202,25 +279,37 @@ def history(symbol):
         response.raise_for_status()
         data = response.json()
 
-        # Si Alpha Vantage informa un límite o restricción,
-        # devolver el historial anterior si existe.
-        if "Note" in data or "Information" in data:
-            detalle = data.get("Note") or data.get("Information")
-            print(f"Límite o restricción de Alpha Vantage: {detalle}")
+        # Alpha Vantage puede informar límites en el JSON.
+        restriction = (
+            data.get("Note")
+            or data.get("Information")
+        )
+
+        if restriction:
+            app.logger.warning(
+                "Restricción de Alpha Vantage: %s",
+                restriction
+            )
 
             if cached:
-                print(f"Usando historial anterior de {symbol}")
-                return jsonify(cached["data"])
+                return cached_response(
+                    cached,
+                    "Límite de consultas alcanzado. "
+                    "Se muestra el último historial guardado."
+                )
 
             return jsonify({
                 "error": "Alpha Vantage informó un límite o restricción",
-                "detalle": detalle
+                "detalle": restriction
             }), 429
 
-        if "Error Message" in data:
+        if data.get("Error Message"):
             if cached:
-                print(f"Usando historial anterior de {symbol}")
-                return jsonify(cached["data"])
+                return cached_response(
+                    cached,
+                    "No se pudo actualizar. "
+                    "Se muestra el último historial guardado."
+                )
 
             return jsonify({
                 "error": "Alpha Vantage rechazó el símbolo",
@@ -231,40 +320,71 @@ def history(symbol):
 
         if not series:
             if cached:
-                print(f"Usando historial anterior de {symbol}")
-                return jsonify(cached["data"])
+                return cached_response(
+                    cached,
+                    "No se pudo actualizar el historial guardado."
+                )
 
             return jsonify({
-                "error": "No se recibieron datos históricos",
-                "detalle": "Revisá la clave y la disponibilidad del símbolo."
+                "error": "No se recibieron datos históricos"
             }), 502
 
-        fechas = sorted(series.keys())
+        # Orden cronológico: fechas antiguas primero.
+        dates = sorted(series.keys())
 
-        resultado = {
+        result = {
             "symbol": symbol,
-            "labels": fechas,
+            "labels": dates,
             "values": [
-                float(series[fecha]["4. close"])
-                for fecha in fechas
+                float(series[date]["4. close"])
+                for date in dates
             ]
         }
 
-        # Guardar el resultado exitoso en memoria durante 24 horas.
-        save_history_cache(symbol, resultado)
+        # 4. Guardar únicamente respuestas válidas.
+        save_history_cache(symbol, result)
 
-        print(f"Historial de {symbol} guardado en memoria")
-        return jsonify(resultado)
+        return jsonify(result)
 
-    except requests.RequestException as e:
-        print(f"Error consultando Alpha Vantage: {e}")
+    except requests.HTTPError as error:
+        status = (
+            error.response.status_code
+            if error.response is not None
+            else 502
+        )
+
+        app.logger.error(
+            "Error HTTP de Alpha Vantage: %s",
+            status
+        )
 
         if cached:
-            print(f"Usando historial anterior de {symbol}")
-            return jsonify(cached["data"])
+            return cached_response(
+                cached,
+                "No se pudo actualizar. "
+                "Se muestra el último historial guardado."
+            )
 
         return jsonify({
-            "error": "No se pudo conectar con Alpha Vantage"
+            "error": "Alpha Vantage rechazó la consulta",
+            "status": status
+        }), 502
+
+    except (requests.RequestException, ValueError, KeyError) as error:
+        app.logger.error(
+            "Error consultando el historial: %s",
+            error
+        )
+
+        if cached:
+            return cached_response(
+                cached,
+                "Error de conexión. "
+                "Se muestra el último historial guardado."
+            )
+
+        return jsonify({
+            "error": "No se pudo obtener el historial"
         }), 502
 
 
@@ -276,9 +396,9 @@ def history(symbol):
 def health():
     return jsonify({
         "status": "ok",
-        "finnhub_key_configured": bool(API_KEY),
+        "finnhub_key_configured": bool(FINNHUB_API_KEY),
         "alphavantage_key_configured": bool(
-            os.getenv("ALPHA_VANTAGE_API_KEY", "").strip()
+            ALPHA_VANTAGE_API_KEY
         )
     })
 
